@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { authConfigured, isAuthenticated } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ function normalizeTransaction(raw: any): Tx {
     id: String(raw?.id ?? ''),
     date: normalizeDate(raw?.date),
     type: type === 'income' ? 'income' : 'expense',
-    amount: Number(raw?.amount) || 0,
+    amount: parseAmount(raw?.amount),
     category: String(raw?.category ?? 'Other'),
     note: String(raw?.note ?? ''),
     createdAt: String(raw?.createdAt ?? ''),
@@ -29,7 +30,17 @@ function normalizeTransaction(raw: any): Tx {
   }
 }
 
+function parseAmount(value:unknown):number {
+  if (typeof value === 'number') return value
+  let text=String(value ?? '').trim().replace(/\s/g,'').replace(/ARS|\$/gi,'')
+  if (text.includes(',') && text.includes('.')) text=text.replace(/\./g,'').replace(',','.')
+  else if (text.includes(',')) text=text.replace(',','.')
+  return Number(text) || 0
+}
+
 export async function GET() {
+  if (!authConfigured()) return NextResponse.json({ok:false,error:'Configure DASHBOARD_PASSWORD and DASHBOARD_SESSION_SECRET in Vercel.'},{status:503})
+  if (!await isAuthenticated()) return NextResponse.json({ok:false,error:'Unauthorized'},{status:401})
   const url = process.env.GOOGLE_APPS_SCRIPT_URL
   const secret = process.env.GOOGLE_APPS_SCRIPT_SECRET
   if (!url || !secret) return NextResponse.json({ok:false,error:'Google Apps Script environment variables are not configured.'},{status:500})
